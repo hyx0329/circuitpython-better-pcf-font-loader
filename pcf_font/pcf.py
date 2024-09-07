@@ -151,15 +151,15 @@ class PcfFont:
         self._metrics_compressed = metrics_compressed
 
         # Encoding table
+        # TODO: use default_char as fallback?
         self._file.seek(tables[_PCF_TABLETYPE_BDFENCODINGS].offset + 4)
-        min_byte2, max_byte2, min_byte1, max_byte1, default_char = read_values(
-            self._file, ">hhhhh"
-        )
-        self._min_byte2 = min_byte2
-        self._max_byte2 = max_byte2
-        self._min_byte1 = min_byte1
-        self._max_byte1 = max_byte1
-        self._default_char = default_char  # TODO: use this fallback?
+        (
+            self._min_byte2,
+            self._max_byte2,
+            self._min_byte1,
+            self._max_byte1,
+            self._default_char,
+        ) = read_values(self._file, ">hhhhh")
 
         # Accelerators table
         acc_table = (
@@ -170,7 +170,7 @@ class PcfFont:
         self._file.seek(acc_table.offset + 4 + 8)
         self._ascent, self._descent = read_values(self._file, ">ii")
         if acc_table.format & _PCF_ACCEL_W_INKBOUNDS > 0:
-            # skip minbounds and maxbounds, use ink_minbounds and ink_maxbounds instead
+            # has ink_minbounds and ink_maxbounds, use them instead of minbounds and maxbounds
             self._file.seek(acc_table.offset + 4 + 8 + 4 + 4 + 4 + 24)
         else:
             self._file.seek(acc_table.offset + 4 + 8 + 4 + 4 + 4)
@@ -213,6 +213,8 @@ class PcfFont:
         if not code_points:
             return
 
+        # implied de-duplication here :)
+        # char order is preserved somehow
         glyphs_indices = {
             c: index for c in code_points if (index := self._get_glyph_index(c)) >= 0
         }
@@ -224,8 +226,9 @@ class PcfFont:
         ]
         char_metrics = [self._get_metrics(i) for i in glyphs_indices.values()]
 
-        # batch creating bitmaps
         gc.collect()
+
+        # batch creating bitmaps
         bitmaps = [None] * len(glyphs_indices)
         for i, (metrics, code_point) in enumerate(
             zip(char_metrics, glyphs_indices.keys())
@@ -247,10 +250,7 @@ class PcfFont:
                 ),
             )
 
-        for i, (metrics, bmp_offset) in enumerate(zip(char_metrics, bitmaps_offsets)):
-            width = metrics.right_side_bearing - metrics.left_side_bearing
-            height = metrics.character_ascent + metrics.character_descent
-            bitmap = bitmaps[i]
+        for bmp_offset, bitmap in zip(bitmaps_offsets, bitmaps):
             self._file.seek(self._bitmap_data_location + bmp_offset)
             _bitmap_readinto(
                 bitmap,
