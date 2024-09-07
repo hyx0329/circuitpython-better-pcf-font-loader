@@ -11,12 +11,19 @@ Pros:
     - useful for fonts with numerous code points(like CJK fonts) so memory won't be exhausted by cache
 - support different glyph paddings
     - thus font file can be smaller
+- faster(batch load) than Adafruit_CircuitPython_Bitmap_Font
+    - 158ms VS 242ms when loading 72 unique CJK characters
+    - 173ms VS 341ms when loading 72 unique/125 total CJK characters
+    - tested on RP2040, both use the same PCF font, *YMMV though*
 
 Cons:
 
 - only PCF is supported
 - may not work on some older CircuitPython
     - needs `bitmaptools.readinto`
+- consumes __more__ RAM, possibly
+    - about(less than) 1KB with default configuration
+    - maybe neglectable for CircuitPython
 
 Example:
 
